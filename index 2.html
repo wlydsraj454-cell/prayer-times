@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<title>أوقات الصلاة - العد التنازلي مع الأذان</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #fff;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+}
+h1 {
+  color: #3b82f6;
+  margin-top: 40px;
+}
+.countdown {
+  background: #1e293b;
+  padding: 20px;
+  margin: 50px auto;
+  width: 320px;
+  border-radius: 10px;
+  font-size: 24px;
+}
+</style>
+</head>
+<body>
+
+<h1>🕌 الصلاة القادمة</h1>
+<div class="countdown" id="countdown">جاري التحميل...</div>
+
+<audio id="azanAudio" src="https://www.soundjay.com/misc/sounds/mosque-azan-01.mp3" preload="auto"></audio>
+
+<script>
+let timings = {};
+
+async function loadPrayerTimes() {
+  const today = new Date();
+  const day = today.getDate();
+  const month = today.getMonth()+1;
+  const year = today.getFullYear();
+
+  try {
+    const res = await fetch(`https://api.aladhan.com/v1/timingsByCity/${day}-${month}-${year}?city=Syracuse&country=USA&method=2`);
+    const data = await res.json();
+    timings = data.data.timings;
+    startCountdown();
+  } catch(err){
+    console.error(err);
+    document.getElementById("countdown").innerText = "خطأ بالتحميل";
+  }
+}
+
+function getPrayerTimeDate(timeStr){
+  const [hour, minute] = timeStr.split(':').map(Number);
+  const now = new Date();
+  const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0);
+  return dt;
+}
+
+function startCountdown(){
+  const azanAudio = document.getElementById("azanAudio");
+  let lastPrayer = "";
+  setInterval(()=>{
+    const now = new Date();
+    const prayerOrder = ["Fajr","Dhuhr","Asr","Maghrib","Isha"];
+    let nextPrayer = null;
+
+    for(let i=0;i<prayerOrder.length;i++){
+      const prayerTime = getPrayerTimeDate(timings[prayerOrder[i]]);
+      if(prayerTime>now){
+        nextPrayer = {name:prayerOrder[i],time:prayerTime};
+        break;
+      }
+    }
+
+    if(!nextPrayer){ // اذا خلصت كل الصلوات اليوم
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate()+1);
+      const prayerTime = getPrayerTimeDate(timings["Fajr"]);
+      prayerTime.setDate(tomorrow.getDate());
+      nextPrayer={name:"Fajr",time:prayerTime};
+    }
+
+    const diff = nextPrayer.time-now;
+    const hours = Math.floor(diff/(1000*60*60));
+    const minutes = Math.floor((diff%(1000*60*60))/(1000*60));
+    const seconds = Math.floor((diff%(1000*60))/1000);
+
+    document.getElementById("countdown").innerText = `الصلاة القادمة: ${nextPrayer.name} بعد ${hours} س ${minutes} د ${seconds} ث`;
+
+    // اذا وصل الوقت للأذان
+    if(diff<=1000 && lastPrayer!=nextPrayer.name){
+      azanAudio.play();
+      lastPrayer = nextPrayer.name;
+    }
+
+  },1000);
+}
+
+loadPrayerTimes();
+</script>
+
+</body>
+</html>
